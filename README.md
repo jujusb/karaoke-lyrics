@@ -4,7 +4,7 @@ This project provides a pipeline for generating synchronized lyrics (LRC/ASS) fo
 
 ## Directory Structure
 
-- `media/songs/` — Place your audio files (`.m4a`) and optional `.txt` lyric files here.
+- `media/songs/` — Place your audio files (any format supported by WhisperX, e.g. `.m4a`, `.mp3`, `.wav`, `.flac`, `.ogg`, `.aac`, `.wma`, `.mp4`, `.mkv`, `.opus`, `.webm`, `.mov`, `.avi`, `.m4b`) and optional `.txt` lyric files here.
 - `media/work/` — Intermediate and output files are written here.
 - `media/work/synced/` — Synchronized JSON and LRC/ASS files.
 - `scripts/generate_lyrics.py` — Main pipeline script.
@@ -29,7 +29,7 @@ Set these variables to control which steps run:
 
 ## How to Run
 
-1. Place your `.m4a` audio files (and optionally `.txt` lyric files) in `media/songs/`.
+1. Place your audio files (any format supported by WhisperX, e.g. `.m4a`, `.mp3`, `.wav`, `.flac`, `.ogg`, `.aac`, `.wma`, `.mp4`, `.mkv`, `.opus`, `.webm`, `.mov`, `.avi`, `.m4b`) and optionally `.txt` lyric files in `media/songs/`.
 2. Set the desired environment variables (see above).
 3. Run the pipeline:
 
@@ -49,6 +49,14 @@ Set these variables to control which steps run:
 - `.txtstruct.json` — Segments restructured to match `.txt` lines.
 - `.lrc` — Synchronized LRC file.
 - `.ass` — Karaoke ASS file.
+
+## Supported Audio Formats
+
+The pipeline will process any of the following formats (as supported by WhisperX):
+
+```
+.m4a, .mp3, .wav, .flac, .ogg, .aac, .wma, .mp4, .mkv, .opus, .webm, .mov, .avi, .m4b
+```
 
 ## Notes
 

@@ -268,7 +268,10 @@ def get_metadata(mp3_path):
 # 5. MAIN PIPELINE
 # -------------------------
 def process(file):
-    if not file.endswith(".m4a"):
+    # Accept all common audio formats supported by whisperx
+    SUPPORTED_EXTS = {'.m4a', '.mp3', '.wav', '.flac', '.ogg', '.aac', '.wma', '.mp4', '.mkv', '.opus', '.webm', '.mov', '.avi', '.m4b'}
+    ext = os.path.splitext(file)[1].lower()
+    if ext not in SUPPORTED_EXTS:
         return
 
     base = os.path.splitext(file)[0]
