@@ -3,7 +3,7 @@ import subprocess
 import requests
 from mutagen import File
 from mutagen.easyid3 import EasyID3
-from mutagen.id3 import ID3, USLT, SYLT, Encoding
+from mutagen.id3 import ID3, USLT, SYLT,  TXXX,  Encoding
 from difflib import SequenceMatcher
 import json
 import re
@@ -108,7 +108,6 @@ def generate_lrc(mp3_path, txt_path, lrc_path):
             text = seg["text"]
             f.write(f"{fmt_lrc(start)}{text}\n")
     print(f"[LRC] LRC file generated: {lrc_path}")
-    exit(0)
 
 def generate_whisper_json(mp3_path, txt_path, json_path, json_restructure_path):
     """
@@ -310,11 +309,17 @@ def add_lyrics_tags(mp3_path, txt_path, lrc_path):
                 has_sylt = any(frame.FrameID == 'SYLT' for frame in audio.values())
                 if not has_sylt and lrc_lyrics:
                     audio.add(SYLT(encoding=Encoding.UTF8, lang='eng', format=2, type=1, desc='', text=lrc_lyrics, sync=[]))
+                    # Add fallback Navidrome-friendly tag
+                    audio.add(TXXX(
+                        encoding=Encoding.UTF8,
+                        desc="LYRICS",
+                        text=txt_lyrics
+                    ))
                     print(f"[TAGS] Added synced lyrics (SYLT) to {mp3_path}")
             except Exception as e:
                 print(f"[TAGS] Error adding synced lyrics: {e}")
         try:
-            audio.save()
+            audio.save(v2_version=3)
         except Exception as e:
             print(f"[TAGS] Error saving tags: {e}")
         return
@@ -334,6 +339,8 @@ def add_lyrics_tags(mp3_path, txt_path, lrc_path):
                     txt_lyrics = f.read().strip()
                 if txt_lyrics and not audio.tags.get('\xa9lyr'):
                     audio.tags['\xa9lyr'] = [txt_lyrics]
+                    audio.tags['----:com.apple.iTunes:LYRICS'] = [txt_lyrics.encode("utf-8")]
+                    audio.tags['----:com.apple.iTunes:UNSYNCEDLYRICS'] = [txt_lyrics.encode("utf-8")]
                     print(f"[TAGS] Added unsynced lyrics (\xa9lyr) to {mp3_path}")
                     changed = True
             except Exception as e:
@@ -351,7 +358,7 @@ def add_lyrics_tags(mp3_path, txt_path, lrc_path):
                 print(f"[TAGS] Error adding synced lyrics: {e}")
         if changed:
             try:
-                audio.save()
+                audio.save(v2_version=3)
             except Exception as e:
                 print(f"[TAGS] Error saving tags: {e}")
         return
@@ -388,7 +395,7 @@ def add_lyrics_tags(mp3_path, txt_path, lrc_path):
                 print(f"[TAGS] Error adding synced lyrics: {e}")
         if changed:
             try:
-                audio.save()
+                audio.save(v2_version=3)
             except Exception as e:
                 print(f"[TAGS] Error saving tags: {e}")
         return
@@ -431,7 +438,7 @@ def add_lyrics_tags(mp3_path, txt_path, lrc_path):
             print(f"[TAGS] Error adding synced lyrics: {e}")
 
     try:
-        audio.save()
+        audio.save(v2_version=3)
     except Exception as e:
         print(f"[TAGS] Error saving tags: {e}")
 
@@ -532,8 +539,6 @@ def process(file):
 def main():
     for root, _, files in os.walk(MEDIA_DIR):
         for f in files:
-            if not f.lower().endswith(".m4a"):
-                continue
             if f.startswith("."):
                 continue
             process(os.path.join(root, f))
