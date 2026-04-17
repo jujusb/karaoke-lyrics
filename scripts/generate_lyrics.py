@@ -35,9 +35,13 @@ def fetch_lyrics_from_internet(artist, title):
     print(f"[NET] Searching lyrics: {artist} - {title}")
     if not artist or not title:
         return None
+
     try:
         url = f"https://lrclib.net/api/get?artist_name={artist}&track_name={title}"
-        r = requests.get(url, timeout=5)
+        headers = {
+            "User-Agent": "KaraokeLyricsGen/1.0 (https://github.com/jujusb/karaoke-lyrics)"
+        }
+        r = requests.get(url, timeout=5, headers=headers)
 
         if r.status_code == 200:
             data = r.json()
