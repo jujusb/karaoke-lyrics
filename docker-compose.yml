@@ -14,6 +14,7 @@ services:
       - GENERATE_SYNCED_LYRICS=${GENERATE_SYNCED_LYRICS:-true}
       - GENERATE_KARAOKE_LYRICS=${GENERATE_KARAOKE_LYRICS:-true}
       - ADD_LYRICS_TAGS=${ADD_LYRICS_TAGS:-false}
+      - WHISPERX_LANGUAGE=${WHISPERX_LANGUAGE:-}
     working_dir: /scripts
     entrypoint: ["bash"]
     tty: true

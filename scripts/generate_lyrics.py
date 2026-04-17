@@ -70,6 +70,9 @@ def generate_txt_whisper(mp3_path, txt_path):
             "--output_format", "txt",
             "--output_dir", UNSYNCED_WORK_DIR
         ]
+        whisperx_lang = os.environ.get("WHISPERX_LANGUAGE")
+        if whisperx_lang:
+            cmd += ["--language", whisperx_lang]
         subprocess.run(cmd, check=True)
     else:
         print(f"[WHISPER] Unsynced lyrics already generated: {generated}")
@@ -150,9 +153,12 @@ def generate_whisper_json(mp3_path, txt_path, json_path, json_restructure_path):
             "whisperx",
             mp3_path,
             "--model", "large-v3",
-            "--output_format", "json",
+            "--output_format", "json",   
             "--output_dir", os.path.dirname(json_path)
         ]
+        whisperx_lang = os.environ.get("WHISPERX_LANGUAGE")
+        if whisperx_lang:
+            cmd += ["--language", whisperx_lang]
         if txt_path and os.path.exists(txt_path):
             cmd += ["--initial_prompt", open(txt_path, encoding="utf-8").read()]
         subprocess.run(cmd, check=True)
