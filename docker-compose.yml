@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  whisperx:
+    image: ghcr.io/jim60105/whisperx:latest
+    container_name: whisperx
+    volumes:
+      - ./media:/media
+      - ./scripts:/scripts
+    environment:
+      - FETCH_FROM_WEB=true
+      - GENERATE_UNSYNCED_LYRICS=false
+      - GENERATE_SYNCED_LYRICS=true
+      - GENERATE_KARAOKE_LYRICS=true
+      - GENERATION_MODE=lyrics
+    working_dir: /scripts
+    entrypoint: ["bash"]
+    tty: true
