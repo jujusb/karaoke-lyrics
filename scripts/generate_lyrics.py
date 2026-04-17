@@ -24,6 +24,14 @@ os.makedirs(UNSYNCED_WORK_DIR, exist_ok=True)
 os.makedirs(SYNCED_WORK_DIR, exist_ok=True)
 os.makedirs(KARAOKE_WORK_DIR, exist_ok=True)
 
+###########################################################
+# 1. INTERNET LYRICS FETCH
+#
+# Attempts to fetch lyrics from the internet (lrclib.net)
+# if artist and title metadata are available. Used as the
+# first step to obtain plain and synced lyrics before
+# falling back to WhisperX.
+###########################################################
 # -------------------------
 # 1. INTERNET LYRICS FETCH
 # -------------------------
@@ -47,6 +55,12 @@ def fetch_lyrics_from_internet(artist, title):
     return None
 
 
+###########################################################
+# 2. WHISPER FALLBACK
+#
+# If no lyrics are found from the internet, uses WhisperX
+# to generate unsynced lyrics (plain text) from the audio.
+###########################################################
 # -------------------------
 # 2. WHISPER FALLBACK
 # -------------------------
@@ -68,6 +82,13 @@ def generate_txt_whisper(mp3_path, txt_path):
     if os.path.exists(generated):
         os.rename(generated, txt_path)
 
+###########################################################
+# 3. LRC GENERATION
+#
+# Generates a restructured WhisperX JSON file that aligns
+# word-level timestamps to the structure of the .txt lyrics.
+# Also provides LRC file generation from the restructured JSON.
+###########################################################
 # -------------------------
 # 3. LRC GENERATION
 # -------------------------
@@ -197,9 +218,12 @@ def generate_whisper_json(mp3_path, txt_path, json_path, json_restructure_path):
             except Exception as e:
                 print(f"[WHISPER] Error restructuring JSON segments: {e}")
 
-# -------------------------
+###########################################################
 # 4. ASS GENERATION
-# -------------------------
+#
+# Generates a karaoke-style ASS subtitle file using the
+# restructured JSON segments for word-level timing.
+###########################################################
 def generate_ass(mp3_path, txt_path, ass_path):
     print("[ASS] generating word karaoke")
     base_filename = os.path.splitext(os.path.basename(mp3_path))[0]
@@ -250,6 +274,11 @@ def get_metadata(mp3_path):
         try:
             audio = EasyID3(mp3_path)
             artist = audio.get("artist", [""])[0]
+###########################################################
+# Main pipeline for a single audio file. Checks file type,
+# determines paths, and runs each enabled step (internet fetch,
+# unsynced lyrics, synced LRC, karaoke ASS) as needed.
+###########################################################
             title = audio.get("title", [""])[0]
             print(f"[META EasyID3] {artist} - {title}")
         except Exception:
