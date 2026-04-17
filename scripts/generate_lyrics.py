@@ -60,20 +60,51 @@ def fetch_lyrics_from_internet(artist, title):
 def generate_txt_whisper(mp3_path, txt_path):
     print("[WHISPER] generating unsynced lyrics")
 
-    cmd = [
-        "whisperx",
-        mp3_path,
-        "--model", "large-v3",
-        "--output_format", "txt",
-        "--output_dir", UNSYNCED_WORK_DIR
-    ]
-
-    subprocess.run(cmd, check=True)
-
-    base_filename = os.path.basename(mp3_path)
+    base_filename =  os.path.splitext(os.path.basename(mp3_path))[0]
     generated = os.path.join(UNSYNCED_WORK_DIR, base_filename + ".txt")
+    if not os.path.exists(generated):
+        cmd = [
+            "whisperx",
+            mp3_path,
+            "--model", "large-v3",
+            "--output_format", "txt",
+            "--output_dir", UNSYNCED_WORK_DIR
+        ]
+        subprocess.run(cmd, check=True)
+    else:
+        print(f"[WHISPER] Unsynced lyrics already generated: {generated}")
     if os.path.exists(generated):
-        os.rename(generated, txt_path)
+        # Read the generated lyrics and split for better readability
+        with open(generated, "r", encoding="utf-8") as f:
+            text = f.read()
+
+        import re
+        import math
+        # Split by punctuation (.,!?) or capital letter (not at start)
+        split_regex = r'(?<=[.!?])\s+|(?<!^)\s+(?=[A-ZÉÈÀÂÎÔÛÇ])'
+        raw_lines = re.split(split_regex, text)
+        split_lines = []
+        for line in raw_lines:
+            words = line.strip().split()
+            n = len(words)
+            if n == 0:
+                continue
+            # Split into ceil(n/10) chunks, each as close as possible in size
+            if n <= 12:
+                split_lines.append(' '.join(words))
+            else:
+                num_chunks = math.ceil(n / 10)
+                chunk_size = math.ceil(n / num_chunks)
+                for i in range(0, n, chunk_size):
+                    chunk = words[i:i+chunk_size]
+                    split_lines.append(' '.join(chunk))
+        # Remove any accidental empty lines
+        split_lines = [l for l in split_lines if l.strip()]
+        # Write to the real txt_path in MEDIA_DIR
+        with open(txt_path, "w", encoding="utf-8") as f:
+            for l in split_lines:
+                f.write(l + "\n")
+        print(f"[WHISPER] Unsynced lyrics written to {txt_path} (balanced split by punctuation/capital, no single-word lines)")
 
 ###########################################################
 # 3. LRC GENERATION
