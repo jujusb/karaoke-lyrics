@@ -5,14 +5,15 @@ services:
     image: ghcr.io/jim60105/whisperx:latest
     container_name: whisperx
     volumes:
-      - ./media:/media
+      - ${MEDIA_DIR:-./media/songs}:/media/songs
+      - ./media/work:/media/work
       - ./scripts:/scripts
     environment:
-      - FETCH_FROM_WEB=true
-      - GENERATE_UNSYNCED_LYRICS=false
-      - GENERATE_SYNCED_LYRICS=true
-      - GENERATE_KARAOKE_LYRICS=true
-      - GENERATION_MODE=lyrics
+      - FETCH_FROM_WEB=${FETCH_FROM_WEB:-true}
+      - GENERATE_UNSYNCED_LYRICS=${GENERATE_UNSYNCED_LYRICS:-true}
+      - GENERATE_SYNCED_LYRICS=${GENERATE_SYNCED_LYRICS:-true}
+      - GENERATE_KARAOKE_LYRICS=${GENERATE_KARAOKE_LYRICS:-true}
+      - ADD_LYRICS_TAGS=${ADD_LYRICS_TAGS:-false}
     working_dir: /scripts
     entrypoint: ["bash"]
     tty: true

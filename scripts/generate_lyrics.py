@@ -3,9 +3,12 @@ import subprocess
 import requests
 from mutagen import File
 from mutagen.easyid3 import EasyID3
+from mutagen.id3 import ID3, USLT, SYLT, Encoding
 from difflib import SequenceMatcher
 import json
 import re
+from mutagen.mp4 import MP4, MP4Tags
+from mutagen.flac import FLAC
 
 def normalize(text):
     text = text.lower()
@@ -14,15 +17,11 @@ def normalize(text):
     return text
 
 MEDIA_DIR = "/media/songs"
-WORK_DIR = "/media/work"
 UNSYNCED_WORK_DIR = "/media/work/unsynced"
 SYNCED_WORK_DIR = "/media/work/synced"
-KARAOKE_WORK_DIR = "/media/work/karaoke"
 
-os.makedirs(WORK_DIR, exist_ok=True)
 os.makedirs(UNSYNCED_WORK_DIR, exist_ok=True)
 os.makedirs(SYNCED_WORK_DIR, exist_ok=True)
-os.makedirs(KARAOKE_WORK_DIR, exist_ok=True)
 
 ###########################################################
 # 1. INTERNET LYRICS FETCH
@@ -32,9 +31,6 @@ os.makedirs(KARAOKE_WORK_DIR, exist_ok=True)
 # first step to obtain plain and synced lyrics before
 # falling back to WhisperX.
 ###########################################################
-# -------------------------
-# 1. INTERNET LYRICS FETCH
-# -------------------------
 def fetch_lyrics_from_internet(artist, title):
     print(f"[NET] Searching lyrics: {artist} - {title}")
     if not artist or not title:
@@ -61,9 +57,6 @@ def fetch_lyrics_from_internet(artist, title):
 # If no lyrics are found from the internet, uses WhisperX
 # to generate unsynced lyrics (plain text) from the audio.
 ###########################################################
-# -------------------------
-# 2. WHISPER FALLBACK
-# -------------------------
 def generate_txt_whisper(mp3_path, txt_path):
     print("[WHISPER] generating unsynced lyrics")
 
@@ -89,9 +82,6 @@ def generate_txt_whisper(mp3_path, txt_path):
 # word-level timestamps to the structure of the .txt lyrics.
 # Also provides LRC file generation from the restructured JSON.
 ###########################################################
-# -------------------------
-# 3. LRC GENERATION
-# -------------------------
 def generate_lrc(mp3_path, txt_path, lrc_path):
     """
     Generate an LRC file using the restructured whisperx JSON (txtstruct.json), matching the structure of the txt file.
@@ -274,11 +264,6 @@ def get_metadata(mp3_path):
         try:
             audio = EasyID3(mp3_path)
             artist = audio.get("artist", [""])[0]
-###########################################################
-# Main pipeline for a single audio file. Checks file type,
-# determines paths, and runs each enabled step (internet fetch,
-# unsynced lyrics, synced LRC, karaoke ASS) as needed.
-###########################################################
             title = audio.get("title", [""])[0]
             print(f"[META EasyID3] {artist} - {title}")
         except Exception:
@@ -293,9 +278,169 @@ def get_metadata(mp3_path):
         print("[META] error reading metadata")
         return "", ""
 
-# -------------------------
+def add_lyrics_tags(mp3_path, txt_path, lrc_path):
+    """
+    Add unsynced (plain) and synced (LRC) lyrics as tags to the audio file if not already present.
+    Supports MP3 (ID3), M4A/MP4 (MP4 tags), and FLAC (Vorbis comments).
+    """
+    ext = os.path.splitext(mp3_path)[1].lower()
+    # MP3: ID3 tags
+    if ext == ".mp3":
+        try:
+            audio = ID3(mp3_path)
+        except Exception:
+            print(f"[TAGS] Could not open MP3 file for tagging: {mp3_path}")
+            return
+        # Unsynced lyrics (USLT)
+        if os.path.exists(txt_path):
+            try:
+                with open(txt_path, "r", encoding="utf-8") as f:
+                    txt_lyrics = f.read().strip()
+                has_uslt = any(frame.FrameID == 'USLT' for frame in audio.values())
+                if not has_uslt and txt_lyrics:
+                    audio.add(USLT(encoding=Encoding.UTF8, lang='eng', desc='', text=txt_lyrics))
+                    print(f"[TAGS] Added unsynced lyrics (USLT) to {mp3_path}")
+            except Exception as e:
+                print(f"[TAGS] Error adding unsynced lyrics: {e}")
+        # Synced lyrics (SYLT)
+        if os.path.exists(lrc_path):
+            try:
+                with open(lrc_path, "r", encoding="utf-8") as f:
+                    lrc_lyrics = f.read().strip()
+                has_sylt = any(frame.FrameID == 'SYLT' for frame in audio.values())
+                if not has_sylt and lrc_lyrics:
+                    audio.add(SYLT(encoding=Encoding.UTF8, lang='eng', format=2, type=1, desc='', text=lrc_lyrics, sync=[]))
+                    print(f"[TAGS] Added synced lyrics (SYLT) to {mp3_path}")
+            except Exception as e:
+                print(f"[TAGS] Error adding synced lyrics: {e}")
+        try:
+            audio.save()
+        except Exception as e:
+            print(f"[TAGS] Error saving tags: {e}")
+        return
+
+    # M4A/MP4: MP4 tags
+    if ext in {".m4a", ".mp4", ".m4b", ".m4p"}:
+        try:
+            audio = MP4(mp3_path)
+        except Exception:
+            print(f"[TAGS] Could not open MP4/M4A file for tagging: {mp3_path}")
+            return
+        changed = False
+        # Unsynced lyrics
+        if os.path.exists(txt_path):
+            try:
+                with open(txt_path, "r", encoding="utf-8") as f:
+                    txt_lyrics = f.read().strip()
+                if txt_lyrics and not audio.tags.get('\xa9lyr'):
+                    audio.tags['\xa9lyr'] = [txt_lyrics]
+                    print(f"[TAGS] Added unsynced lyrics (\xa9lyr) to {mp3_path}")
+                    changed = True
+            except Exception as e:
+                print(f"[TAGS] Error adding unsynced lyrics: {e}")
+        # Synced lyrics (custom atom)
+        if os.path.exists(lrc_path):
+            try:
+                with open(lrc_path, "r", encoding="utf-8") as f:
+                    lrc_lyrics = f.read().strip()
+                if lrc_lyrics and not audio.tags.get('----:com.apple.iTunes:SYLT'):
+                    audio.tags['----:com.apple.iTunes:SYLT'] = [lrc_lyrics.encode('utf-8')]
+                    print(f"[TAGS] Added synced lyrics (SYLT atom) to {mp3_path}")
+                    changed = True
+            except Exception as e:
+                print(f"[TAGS] Error adding synced lyrics: {e}")
+        if changed:
+            try:
+                audio.save()
+            except Exception as e:
+                print(f"[TAGS] Error saving tags: {e}")
+        return
+
+    # FLAC: Vorbis comments
+    if ext == ".flac":
+        try:
+            audio = FLAC(mp3_path)
+        except Exception:
+            print(f"[TAGS] Could not open FLAC file for tagging: {mp3_path}")
+            return
+        changed = False
+        # Unsynced lyrics
+        if os.path.exists(txt_path):
+            try:
+                with open(txt_path, "r", encoding="utf-8") as f:
+                    txt_lyrics = f.read().strip()
+                if txt_lyrics and 'LYRICS' not in audio:
+                    audio['LYRICS'] = txt_lyrics
+                    print(f"[TAGS] Added unsynced lyrics (LYRICS) to {mp3_path}")
+                    changed = True
+            except Exception as e:
+                print(f"[TAGS] Error adding unsynced lyrics: {e}")
+        # Synced lyrics (custom tag)
+        if os.path.exists(lrc_path):
+            try:
+                with open(lrc_path, "r", encoding="utf-8") as f:
+                    lrc_lyrics = f.read().strip()
+                if lrc_lyrics and 'SYLT' not in audio:
+                    audio['SYLT'] = lrc_lyrics
+                    print(f"[TAGS] Added synced lyrics (SYLT) to {mp3_path}")
+                    changed = True
+            except Exception as e:
+                print(f"[TAGS] Error adding synced lyrics: {e}")
+        if changed:
+            try:
+                audio.save()
+            except Exception as e:
+                print(f"[TAGS] Error saving tags: {e}")
+        return
+
+    # Other formats: not supported
+    print(f"[TAGS] Tagging not supported for this file type: {mp3_path}")
+    """
+    Add unsynced (plain) and synced (LRC) lyrics as tags to the audio file if not already present.
+    Uses USLT (unsynced) and SYLT (synced) ID3 frames.
+    """
+    try:
+        audio = ID3(mp3_path)
+    except Exception:
+        print(f"[TAGS] Could not open file for tagging: {mp3_path}")
+        return
+
+    # Add unsynced lyrics (from txt) as USLT
+    if os.path.exists(txt_path):
+        try:
+            with open(txt_path, "r", encoding="utf-8") as f:
+                txt_lyrics = f.read().strip()
+            has_uslt = any(frame.FrameID == 'USLT' for frame in audio.values())
+            if not has_uslt and txt_lyrics:
+                audio.add(USLT(encoding=Encoding.UTF8, lang='eng', desc='', text=txt_lyrics))
+                print(f"[TAGS] Added unsynced lyrics (USLT) to {mp3_path}")
+        except Exception as e:
+            print(f"[TAGS] Error adding unsynced lyrics: {e}")
+
+    # Add synced lyrics (from lrc) as SYLT (best effort, stores as text)
+    if os.path.exists(lrc_path):
+        try:
+            with open(lrc_path, "r", encoding="utf-8") as f:
+                lrc_lyrics = f.read().strip()
+            has_sylt = any(frame.FrameID == 'SYLT' for frame in audio.values())
+            if not has_sylt and lrc_lyrics:
+                # Note: Proper SYLT requires parsing LRC into time/text pairs. Here we store as text for compatibility.
+                audio.add(SYLT(encoding=Encoding.UTF8, lang='eng', format=2, type=1, desc='', text=lrc_lyrics, sync=[]))
+                print(f"[TAGS] Added synced lyrics (SYLT) to {mp3_path}")
+        except Exception as e:
+            print(f"[TAGS] Error adding synced lyrics: {e}")
+
+    try:
+        audio.save()
+    except Exception as e:
+        print(f"[TAGS] Error saving tags: {e}")
+
+###########################################################
 # 5. MAIN PIPELINE
-# -------------------------
+# Main pipeline for a single audio file. Checks file type,
+# determines paths, and runs each enabled step (internet fetch,
+# unsynced lyrics, synced LRC, karaoke ASS) as needed.
+###########################################################
 def process(file):
     # Accept all common audio formats supported by whisperx
     SUPPORTED_EXTS = {'.m4a', '.mp3', '.wav', '.flac', '.ogg', '.aac', '.wma', '.mp4', '.mkv', '.opus', '.webm', '.mov', '.avi', '.m4b'}
@@ -326,6 +471,7 @@ def process(file):
     generate_synced = os.environ.get("GENERATE_SYNCED_LYRICS", "false").lower() == "true"
     generate_karaoke = os.environ.get("GENERATE_KARAOKE_LYRICS", "false").lower() == "true"
     fetch_from_web = os.environ.get("FETCH_FROM_WEB", "false").lower() == "true"
+    add_lyrics_tags = os.environ.get("ADD_LYRICS_TAGS", "false").lower() == "true"
 
     # ------------------------- 
     # STEP 1: INTERNET LOOKUP (optional)
@@ -369,13 +515,20 @@ def process(file):
     # -------------------------
     if generate_synced and os.path.exists(txt_path) and not os.path.exists(lrc_path):
         generate_lrc(mp3_path, txt_path, lrc_path)
-
+    
     # -------------------------
     # STEP 4: ASS GENERATION (karaoke)
     # -------------------------
     if generate_karaoke and os.path.exists(txt_path) and not os.path.exists(ass_path):
         # Always generate the JSON file first, then use it for both ASS and
         generate_ass(mp3_path, txt_path, ass_path)  # This now just reads the JSON
+
+    # -------------------------
+    # STEP 5: ADD LYRICS TAGS (unsynced and synced)
+    # -------------------------
+    add_lyrics_tags_env = os.environ.get("ADD_LYRICS_TAGS", "false").lower() == "true"
+    if add_lyrics_tags_env:
+        add_lyrics_tags(mp3_path, txt_path, lrc_path)
 
 def main():
     for root, _, files in os.walk(MEDIA_DIR):

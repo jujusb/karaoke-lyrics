@@ -20,12 +20,13 @@ This project provides a pipeline for generating synchronized lyrics (LRC/ASS) fo
 
 ## Environment Variables
 
-Set these variables to control which steps run:
+Set these variables in .env to control which steps run:
 
 - `FETCH_FROM_WEB=true` — Try to fetch lyrics from the internet.
 - `GENERATE_UNSYNCED_LYRICS=true` — Generate unsynced lyrics with WhisperX if `.txt` is missing.
 - `GENERATE_SYNCED_LYRICS=true` — Generate LRC file from JSON.
 - `GENERATE_KARAOKE_LYRICS=true` — Generate ASS karaoke file from JSON.
+- `ADD_LYRICS_TAGS=true` — Add unsynced and synced lyrics as tags to audio files (if supported by format)
 
 ## How to Run
 
@@ -34,7 +35,11 @@ Set these variables to control which steps run:
 3. Run the pipeline:
 
    ```sh
-   python scripts/generate_lyrics.py
+   docker compose up whisperx -d
+   docker compose exec whisperx python3 -m ensurepip --upgrade
+   docker compose exec whisperx python3 -m pip install --upgrade pip
+   docker compose exec whisperx python3 -m pip install -r requirements.txt 
+   docker compose exec whisperx python3 generate_lyrics.py
    ```
    or use the provided PowerShell script:
    ```sh
