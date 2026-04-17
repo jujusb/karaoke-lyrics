@@ -467,16 +467,16 @@ def process(file):
 
 
     # Read environment variables for generation modes
-    generate_unsynced = os.environ.get("GENERATE_UNSYNCED_LYRICS", "false").lower() == "true"
-    generate_synced = os.environ.get("GENERATE_SYNCED_LYRICS", "false").lower() == "true"
-    generate_karaoke = os.environ.get("GENERATE_KARAOKE_LYRICS", "false").lower() == "true"
-    fetch_from_web = os.environ.get("FETCH_FROM_WEB", "false").lower() == "true"
-    add_lyrics_tags = os.environ.get("ADD_LYRICS_TAGS", "false").lower() == "true"
+    generate_unsynced_env = os.environ.get("GENERATE_UNSYNCED_LYRICS", "false").lower() == "true"
+    generate_synced_env = os.environ.get("GENERATE_SYNCED_LYRICS", "false").lower() == "true"
+    generate_karaoke_env = os.environ.get("GENERATE_KARAOKE_LYRICS", "false").lower() == "true"
+    fetch_from_web_env = os.environ.get("FETCH_FROM_WEB", "false").lower() == "true"
+    add_lyrics_tags_env = os.environ.get("ADD_LYRICS_TAGS", "false").lower() == "true"
 
     # ------------------------- 
     # STEP 1: INTERNET LOOKUP (optional)
     # -------------------------
-    if fetch_from_web:
+    if fetch_from_web_env and (not os.path.exists(txt_path) or not os.path.exists(lrc_path)):
         lyrics = fetch_lyrics_from_internet(artist, title)
 
         if lyrics:
@@ -507,26 +507,25 @@ def process(file):
     # -------------------------
     # STEP 2: WHISPER FALLBACK (unsynced)
     # -------------------------
-    if generate_unsynced and not os.path.exists(txt_path):
+    if generate_unsynced_env and not os.path.exists(txt_path):
         generate_txt_whisper(mp3_path, txt_path)
 
     # -------------------------
     # STEP 3: LRC GENERATION (synced)
     # -------------------------
-    if generate_synced and os.path.exists(txt_path) and not os.path.exists(lrc_path):
+    if generate_synced_env and os.path.exists(txt_path) and not os.path.exists(lrc_path):
         generate_lrc(mp3_path, txt_path, lrc_path)
     
     # -------------------------
     # STEP 4: ASS GENERATION (karaoke)
     # -------------------------
-    if generate_karaoke and os.path.exists(txt_path) and not os.path.exists(ass_path):
+    if generate_karaoke_env and os.path.exists(txt_path) and not os.path.exists(ass_path):
         # Always generate the JSON file first, then use it for both ASS and
         generate_ass(mp3_path, txt_path, ass_path)  # This now just reads the JSON
 
     # -------------------------
     # STEP 5: ADD LYRICS TAGS (unsynced and synced)
     # -------------------------
-    add_lyrics_tags_env = os.environ.get("ADD_LYRICS_TAGS", "false").lower() == "true"
     if add_lyrics_tags_env:
         add_lyrics_tags(mp3_path, txt_path, lrc_path)
 
