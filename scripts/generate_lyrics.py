@@ -335,16 +335,15 @@ def process(file):
     # -------------------------
     # STEP 3: LRC GENERATION (synced)
     # -------------------------
-    if generate_synced and not os.path.exists(lrc_path):
+    if generate_synced and os.path.exists(txt_path) and not os.path.exists(lrc_path):
         generate_lrc(mp3_path, txt_path, lrc_path)
 
     # -------------------------
     # STEP 4: ASS GENERATION (karaoke)
     # -------------------------
-    if generate_karaoke and not os.path.exists(ass_path):
+    if generate_karaoke and os.path.exists(txt_path) and not os.path.exists(ass_path):
         # Always generate the JSON file first, then use it for both ASS and
         generate_ass(mp3_path, txt_path, ass_path)  # This now just reads the JSON
-
 
 def main():
     for root, _, files in os.walk(MEDIA_DIR):
